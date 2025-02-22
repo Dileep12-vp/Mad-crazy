@@ -1,0 +1,197 @@
+import { Injectable } from '@angular/core';
+import { AngularFirestore } from '@angular/fire/compat/firestore';
+import { Observable } from 'rxjs';
+
+export interface Employee {
+  id?: string;
+  name: string;
+  email: string;
+  phone: string;
+}
+
+@Injectable({
+  providedIn: 'root'
+})
+export class EmployeeService {
+  private collectionPath = 'employees';
+
+  constructor(private firestore: AngularFirestore) {}
+
+  getEmployees(): Observable<Employee[]> {
+    return this.firestore.collection<Employee>(this.collectionPath).valueChanges({ idField: 'id' });
+  }
+
+  addEmployee(employee: Employee) {
+    return this.firestore.collection(this.collectionPath).add(employee);
+  }
+
+  updateEmployee(id: string, employee: Employee) {
+    return this.firestore.collection(this.collectionPath).doc(id).update(employee);
+  }
+
+  deleteEmployee(id: string) {
+    return this.firestore.collection(this.collectionPath).doc(id).delete();
+  }
+}
+import { Component, OnInit } from '@angular/core';
+import { EmployeeService, Employee } from '../services/employee.service';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+
+@Component({
+  selector: 'app-home',
+  templateUrl: './home.component.html',
+  styleUrls: ['./home.component.css']
+})
+export class HomeComponent implements OnInit {
+  employees: Employee[] = [];
+  empForm: FormGroup;
+  selectedEmployeeId: string | null = null;
+  showModal = false;
+
+  constructor(private employeeService: EmployeeService, private fb: FormBuilder) {
+    this.empForm = this.fb.group({
+      name: ['', Validators.required],
+      email: ['', [Validators.required, Validators.email]],
+      phone: ['', Validators.required]
+    });
+  }
+
+  ngOnInit() {
+    this.employeeService.getEmployees().subscribe((data) => {
+      this.employees = data;
+    });
+  }
+
+  openModal(employee?: Employee) {
+    this.showModal = true;
+    if (employee) {
+      this.selectedEmployeeId = employee.id!;
+      this.empForm.patchValue(employee);
+    } else {
+      this.selectedEmployeeId = null;
+      this.empForm.reset();
+    }
+  }
+
+  closeModal() {
+    this.showModal = false;
+    this.empForm.reset();
+  }
+
+  saveEmployee() {
+    if (this.empForm.valid) {
+      if (this.selectedEmployeeId) {
+        this.employeeService.updateEmployee(this.selectedEmployeeId, this.empForm.value).then(() => {
+          this.closeModal();
+        });
+      } else {
+        this.employeeService.addEmployee(this.empForm.value).then(() => {
+          this.closeModal();
+        });
+      }
+    }
+  }
+
+  deleteEmployee(id: string) {
+    this.employeeService.deleteEmployee(id);
+  }
+}
+<h2>Employee Management</h2>
+<button (click)="openModal()">Add Employee</button>
+
+<table>
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Name</th>
+      <th>Email</th>
+      <th>Phone</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let emp of employees">
+      <td>{{ emp.id }}</td>
+      <td>{{ emp.name }}</td>
+      <td>{{ emp.email }}</td>
+      <td>{{ emp.phone }}</td>
+      <td>
+        <button (click)="openModal(emp)">Edit</button>
+        <button (click)="deleteEmployee(emp.id)">Delete</button>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- Employee Modal -->
+<div *ngIf="showModal" class="modal">
+  <div class="modal-content">
+    <span (click)="closeModal()" class="close">&times;</span>
+    <h2>{{ selectedEmployeeId ? 'Edit Employee' : 'Add Employee' }}</h2>
+    <form [formGroup]="empForm" (ngSubmit)="saveEmployee()">
+      <label>Name:</label>
+      <input type="text" formControlName="name" required />
+      <label>Email:</label>
+      <input type="email" formControlName="email" required />
+      <label>Phone:</label>
+      <input type="tel" formControlName="phone" required />
+      <button type="submit">{{ selectedEmployeeId ? 'Update' : 'Save' }}</button>
+    </form>
+  </div>
+</div>
+.modal {
+  display: block;
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  padding: 20px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  border-radius: 5px;
+}
+.modal-content {
+  position: relative;
+}
+.close {
+  position: absolute;
+  right: 10px;
+  top: 5px;
+  cursor: pointer;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+th, td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+th {
+  background-color: #4CAF50;
+  color: white;
+}
+button {
+  margin: 5px;
+  padding: 5px 10px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+button:hover {
+  background-color: #45a049;
+}
+export const environment = {
+  production: false,
+  firebase: {
+    apiKey: "YOUR_FIREBASE_API_KEY",
+    authDomain: "YOUR_AUTH_DOMAIN",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_STORAGE_BUCKET",
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  }
+};
